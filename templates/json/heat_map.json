@@ -1,0 +1,5 @@
+{
+	"result":[
+		{%for item in data%}[{{item.0}},{{item.1}},{{item.2}}]{% if not forloop.last %},{% endif %}{%endfor%}
+	]
+}

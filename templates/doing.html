@@ -1,0 +1,104 @@
+<html>
+
+<head>
+	<link rel="shortcut icon" href="/static/images/favicon.ico" />
+
+	<title>{{actions.0.content}} | DoaDoing.com</title>
+	<link rel="stylesheet" type="text/css" href="/static/css/Doingg.css" />
+	<script type="text/javascript" src="/static/js/jquery.min.js"></script>
+	<script type="text/javascript" src="/static/js/jquery.cookie.js"></script>
+	<script type="text/javascript" src="/static/js/Doingg.js"></script>
+
+	<link rel="stylesheet" href="/static/flags/flags.css" />
+	<link rel="stylesheet" href="/static/Leaflet/dist/leaflet.css" />
+    <!--[if lte IE 8]><link rel="stylesheet" href="/static/Leaflet/dist/leaflet.ie.css" /><![endif]-->
+
+    <script type="text/javascript" src="/static/Leaflet/dist/leaflet.js"></script>
+    <script type="text/javascript" src="/static/Mapbox-wax/dist/wax.leaf.min.js"></script>
+
+    <script type="text/javascript" src="/static/js/heatcanvas.js"></script>
+    <script type="text/javascript" src="/static/js/heatcanvas-leaflet.js"></script>
+
+    <script type="text/javascript" src="/static/jqplot/dist/jquery.jqplot.min.js"></script>
+	<script type="text/javascript" src="/static/jqplot/dist/plugins/jqplot.dateAxisRenderer.min.js"></script>
+
+	<link class="include" rel="stylesheet" type="text/css" href="/static/jqplot/dist/jquery.jqplot.min.css" />
+
+	<script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?sensor=false"></script>
+
+	<script type="text/javascript">
+	var geoip = {
+		'country' : '{{geolocation.country}}' ,
+		'coords'  : {
+			'latitude'  : {{geolocation.latitude}} ,
+			'longitude' : {{geolocation.longitude}}
+		}
+	};
+	</script>
+</head>
+<body>
+	<div id="content">
+		<table>
+			<tr>
+				<td valign="top">
+					<a href="/"><img height="55" src="/static/images/logo.png"></a>
+				</td>
+				<td valign="top" style="padding-left:10px;padding-top:20px;">
+
+					<textarea class="disabled" id="new_action">What are you doing?</textarea>
+
+					<div id="share_container">
+						<div id="share">
+							<div id="share_char_limit">70</div>
+							<a class="btn" id="btn_new_action">Share</a>
+						</div>
+					</div>
+				</td>
+			</tr>
+		</table>
+
+		<img id="country_flag" src="/static/images/Transparent.gif" class="flag" alt="" />
+		<div id="country"></div> | 
+		<div id="locality"></div> |
+		<div id="change_location">Change Location</div>
+
+		<div id="mapbox"></div>
+
+		<div style="margin-top:5px;width:100%;height:1px;background-color:#333333;"></div>
+
+		<h2>Happening Right Now</h2>
+
+		<div id="actions">
+
+			{% for a in actions %}
+
+			<div id="action_{{a.id}}" actionid="{{a.id}}" class="action">
+
+				<div class="action_time">
+					<div class="segundos">{{a.date_time|date:'s'}}s</div> 
+					<div class="hora">{{a.date_time|date:'H:i'}}</div>
+				</div>
+
+				<div id="action_content_{{a.id}}" class="action_content">{{a.content}}
+
+					<a href="https://twitter.com/share" class="twitter-share-button" data-text="{{a.content}}" data-via="doadoing">Tweet</a>
+<script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src="//platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}(document,"script","twitter-wjs");</script>
+
+				</div>
+
+				<div class="action_metoos">
+					<div id="me_too_count_{{a.id}}" class="me_too_count">{{a.metoo_set.count}}</div>
+					<a class="btn me_too" actionid="{{a.id}}">me too</a>
+				</div>
+
+			 </div>
+
+			 <script type="text/javascript">
+			 	setTimeout ( "heat_map({{a.id}});" , 1500 );
+			 </script>
+			{% endfor %}
+		</div>
+	</div>
+
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+	"actions" : 
+	[{% for a in actions%}
+	{
+		"Id"      : {{a.id}} ,
+		"Content" : "{{a.content.strip}}" ,
+		"Year"    : {{a.date_time.year   }} ,
+		"Month"   : {{a.date_time.month  }} ,
+		"Day"     : {{a.date_time.day    }} ,
+		"Hour"    : {{a.date_time.hour   }} ,
+		"Minute"  : {{a.date_time.minute }} ,
+		"Second"  : {{a.date_time.second }} ,
+		"MeToos"  : {{a.metoo_set.count  }} 
+	}{% if not forloop.last %},{% endif %}
+	{%endfor%}]
+}
