@@ -1,5 +1,29 @@
 // Doingg JS, this will change the world!
 
+String.prototype.new_link = function ( url , _target)
+{
+	return '<a href="' + url + '" target="' + _target + '">' + this + '</a>';
+}
+
+String.prototype.parseURL = function() {
+	return this.replace(/[A-Za-z]+:\/\/[A-Za-z0-9-_]+\.[A-Za-z0-9-_:%&~\?\/.=]+/g, function(url) {
+		return url.new_link(url, "_new");
+	});
+};
+
+String.prototype.parseUsername = function() {
+	return this.replace(/[@]+[A-Za-z0-9-_]+/g, function(u) {
+		var username = u.replace("@","")
+		return u.new_link("http://twitter.com/" + username , "_new");
+	});
+};
+
+String.prototype.parseHashtag = function() {
+	return this.replace(/[#]+[A-Za-z0-9-_]+/g, function(t) {
+		var tag = t.replace("#","%23")
+		return t.new_link("http://search.twitter.com/search?q="+tag , "_new");
+	});
+};
 
 //---------------------------------------------------------
 //---------------------------------------------------------
@@ -84,6 +108,9 @@ function GlobalSettings()
 	this.country_code   = "";
 	this.locality       = "";
 	this.actions_filter = "";
+	this.title          = document.title;
+	this.mobile         = false;
+	this.server_date    = Date.parse ( server_date );
 
 	// Define the map to use from MapBox
     // This is the TileJSON endpoint copied from the embed button on your map
@@ -168,11 +195,14 @@ GlobalSettings.prototype.hydrate = function()
 
 GlobalSettings.prototype.dehydrate = function()
 {
-	$.cookie ( 'latitude'     , this.latitude     , { expires: 7, path: '/' });
-	$.cookie ( 'longitude'    , this.longitude    , { expires: 7, path: '/' });
-	$.cookie ( 'locality'     , this.locality     , { expires: 7, path: '/' });
-	$.cookie ( 'country'      , this.country      , { expires: 7, path: '/' });
-	$.cookie ( 'country_code' , this.country_code , { expires: 7, path: '/' });
+	if ( !this.mobile )
+	{
+		$.cookie ( 'latitude'     , this.latitude     , { expires: 7, path: '/' });
+		$.cookie ( 'longitude'    , this.longitude    , { expires: 7, path: '/' });
+		$.cookie ( 'locality'     , this.locality     , { expires: 7, path: '/' });
+		$.cookie ( 'country'      , this.country      , { expires: 7, path: '/' });
+		$.cookie ( 'country_code' , this.country_code , { expires: 7, path: '/' });
+	}
 };
 
 //---------------------------------------------------------
@@ -182,6 +212,8 @@ function reload_actions()
 {
 	$.getJSON ( "/load-actions/", function ( result ) 
 	{
+		global_settings.server_date = Date.parse ( result.date );
+
 		$('#actions').html("");
 
 		for ( var i = 0 ; i < result.actions.length ; i++)
@@ -212,6 +244,8 @@ function load_next_page()
 
 	$.getJSON ( "/load-actions/", params ,  function ( result ) 
 	{
+		global_settings.server_date = Date.parse ( result.date );
+
 		delay ( function() 
 		{
 			loader.fadeOut ( 1000 , function () 
@@ -222,7 +256,7 @@ function load_next_page()
 				{
 					var action = make_html_action ( result.actions[i] , false ).hide().fadeIn(1000);
 
-					$('#actions').append ( action );;
+					$('#actions').append ( action );
 				}
 
 				create_actions_handlers();
@@ -247,7 +281,12 @@ function show_location()
 	{
 		var pos = new L.LatLng( global_settings.latitude, global_settings.longitude);
 
-    	global_settings.map.setView ( pos , 11 );
+		var currentZoom = global_settings.map.getZoom();
+
+		if ( !currentZoom || currentZoom == undefined )
+			currentZoom = 11;
+
+    	global_settings.map.setView ( pos , currentZoom );
 
     	if ( global_settings.marker != null )
     		global_settings.map.removeLayer ( global_settings.marker );
@@ -256,7 +295,7 @@ function show_location()
 		global_settings.map.addLayer(global_settings.marker);
     }
 
-    $('#country_flag').attr('class', 'flag flag-'+global_settings.country_code );
+    $('#country_flag').attr ( 'class', 'flag flag-' + global_settings.country_code );
 	$('#country'  ).html ( global_settings.country  );
 	$('#locality' ).html ( global_settings.locality );
 }
@@ -267,14 +306,35 @@ function show_location()
 function me_too ( action_id )
 {
 	var params = {
-		'action_id' : action_id ,
-		'latitude'  : global_settings.latitude ,
-		'longitude' : global_settings.longitude 
+		'action_id'    : action_id                 ,
+		'latitude'     : global_settings.latitude  ,
+		'longitude'    : global_settings.longitude ,
+		'country_code' : global_settings.country_code
 	}
+
+	var count = Number ( $('#me_too_count_' + action_id ).html() );
 
 	$.post ("/me-too/" , params , function ( result ) 
 	{
-		$( "#me_too_count_" + action_id ).html ( result.actions[0].MeToos );
+		if ( result.actions[0].MeToos == count )
+			return;
+
+		global_settings.server_date = Date.parse ( result.date );
+
+		$('#action_' + result.actions [ 0 ].Id ).fadeOut ( 1000 , function () 
+		{	
+			locked_actions.push ( Number(action_id) );
+
+			$(this).remove();
+
+			$('html, body').animate( { scrollTop: 0 }, 'slow' );
+
+			var action = make_html_action ( result.actions [ 0 ] , true );
+			action.hide().prependTo('#actions').fadeIn("slow");
+
+			create_actions_handlers();
+
+		});
 	},
 	"json");
 }
@@ -312,7 +372,8 @@ function stats ( action_id )
 		chart.addClass ( "chart" );
 		chart.appendTo ( encontre );
 
-		var plot2 = $.jqplot( "chart_" + action_id , [line1], {
+		var plot2 = $.jqplot( "chart_" + action_id , [line1], 
+		{
 		  title:'', 
 		  grid: {
 		  	background:"white"
@@ -328,7 +389,8 @@ function stats ( action_id )
 		  series:[ 
 		  	{
 		  		lineWidth:2,
-		  		color: '#56A5EC'
+		  		color: '#56A5EC',
+		  		markerOptions: {size:4}
 		  	}
 		  ]
 		});
@@ -374,14 +436,27 @@ function heat_map (action_id)
 			if ( vector.length <= 0 )
 				return;
 
-			var pos = new L.LatLng( vector[vector.length-1][0] ,vector[vector.length-1][1] );
-
-    		map.setView ( pos , 9 );
+			var positions = [];
 
     		for ( var i = 0 ; i < vector.length ; i++)
     		{
+    			positions.push ( new L.LatLng (vector[i][0], vector[i][1]));
 				heatmap.pushData( vector[i][0], vector[i][1], vector[i][2] * 2);
 			}
+
+			if ( positions.length == 1 || 
+				(   vector.length == 2 && 
+					vector[0][0] == vector[1][0] && 
+					vector[0][1] == vector[1][1]  
+				) 
+			)
+			{
+				map.setView ( positions[0] , 15 );
+			}
+			else
+			{
+    			map.fitBounds (  new L.LatLngBounds ( positions ) );
+    		}
 			
 			//push more data ...
 			map.addLayer(heatmap);
@@ -391,12 +466,33 @@ function heat_map (action_id)
 
 //---------------------------------------------------------
 
+function update_times ()
+{
+	$('.action_time').each ( function()
+	{
+		$(this).html ( 
+			calculate_time ( Date.parse ( $("#action_" + $(this).attr("actionid") ).attr("date") ))
+		);
+	});
+}
+
+//---------------------------------------------------------
+
 function create_actions_handlers()
 {
 	$('.me_too').each ( function()
 	{
 		$(this).unbind('click');
-		$(this).click ( function()
+
+		var action_id = Number ( $(this).attr ( "actionid") );
+
+		if ( locked_actions.indexOf ( action_id ) != -1 )
+		{
+			$(this).addClass ( "disabled_me_too" );
+			return;
+		}
+
+		$(this).click ( function(e)
 		{
 			me_too ( $(this).attr ( "actionid") );	
 		});
@@ -404,7 +500,17 @@ function create_actions_handlers()
 
 	$('.action').each ( function() 
 	{
-		$(this).unbind('mouseenter mouseleave')
+		$(this).unbind('mouseenter mouseleave click')
+
+		$(this).click ( function(event)
+		{
+			if( $( event.target ).hasClass( "action" ) || 
+				$( event.target ).hasClass( "action_content" )  )
+    		{
+        		window.location = "/doing/" + $(this).attr("actionid") + "/";
+    		}
+		});
+
 		$(this).hover ( function() 
 		{
 			var content = $('#action_content_' + $(this).attr("actionid") ).html();
@@ -416,7 +522,7 @@ function create_actions_handlers()
 			$("<div>")
 			.html(
 				"<a href='javascript:heat_map (" + $(this).attr("actionid") + ");'>Heat Map</a> | " +
-				"<a href='javascript:stats (" + $(this).attr("actionid") + ");'>Stats</a> | " + 
+				"<a href='javascript:stats ("    + $(this).attr("actionid") + ");'>Stats</a> | " + 
 				"<a href='https://twitter.com/intent/tweet?text=" + content + "' target='_new'>Tweet</a>")
 			.attr("id","action_hover").appendTo($(this));
 
@@ -425,6 +531,53 @@ function create_actions_handlers()
 			$('#action_hover').remove();
 		});
 	});
+
+	$('a').click(function(event) 
+	{
+    	event.stopPropagation();
+	});
+
+	update_times();
+}
+
+//---------------------------------------------------------
+
+function zeroFill( number, width )
+{
+  width -= number.toString().length;
+  if ( width > 0 )
+  {
+    return new Array( width + (/\./.test( number ) ? 2 : 1) ).join( '0' ) + number;
+  }
+  return number + ""; // always return a string
+}
+
+function calculate_time ( aDate )
+{
+	var delta = new TimeSpan ( global_settings.server_date - aDate );
+	var weeks  = delta.days / 7;
+	var months = weeks / 4;
+
+	if ( delta.days == 0 && delta.hours == 0 && delta.minutes == 0 )
+	{
+		return "now";
+	}
+	else if ( delta.days == 0 && delta.hours == 0 )
+	{
+		return zeroFill ( delta.minutes , 2 ) + "<span style='font-size:18px'>m</span>";
+	}	
+	else if ( delta.days == 0 )
+	{
+		return zeroFill ( delta.hours , 2 ) + "<span style='font-size:18px'>h</span>";
+	}
+	else if ( weeks < 1 )
+	{
+		return zeroFill ( delta.days , 2 ) + "<span style='font-size:18px'>d</span>";
+	}
+	else
+	{
+		return zeroFill ( Math.round ( weeks ) , 2 ) + "<span style='font-size:18px'>w</span>";
+	} 
 }
 
 //---------------------------------------------------------
@@ -435,37 +588,18 @@ function make_html_action ( acc , is_new )
 	action.addClass ( "action" );
 	action.attr ( "actionid" , acc.Id );
 	action.attr ( "id"       , "action_" + acc.Id );
+	action.attr ( "date"     , acc.Date );
 
 	var time = $('<div>');
 	time.addClass ( "action_time" )
+	time.attr ( "actionid" , acc.Id );
 
-	if ( is_new )
-	{
-		var now = $('<div>');
-		now.addClass ( "segundos" );
-		now.html     ( "now"      );
-		time.append ( now );
-	}
-	else
-	{
-		var seconds = $ ('<div>');
-		var hour    = $ ('<div>');
-
-		seconds.addClass ( "segundos" );
-		hour.addClass    ( "hora");
-
-		seconds.html ( acc.Second + "s" );
-		hour.html    ( acc.Hour   + ":" + acc.Minute );
-
-		time.append ( seconds );
-		time.append ( hour    );
-	
-	}
+	time.html ( calculate_time ( Date.parse ( acc.Date ) ) );
 
 	var content = $('<div>');
 	content.addClass ( "action_content" );
 	content.attr ( "id" , "action_content_" + acc.Id );
-	content.html ( acc.Content );
+	content.html ( acc.Content.parseURL().parseUsername().parseHashtag() );
 
 	var me_too = $('<div>');
 	me_too.addClass ( "action_metoos");
@@ -494,7 +628,9 @@ function search_actions ( action_string )
 
 	$.getJSON ( "/search-actions/" , params , function(result) 
 	{
-		if ( 1 == 1 || result.length > 0 )
+		global_settings.server_date = Date.parse ( result.date );
+
+		if ( result.length > 0 )
 		{
 			global_settings.actions_filter = action_string;
 		}
@@ -516,10 +652,14 @@ function search_actions ( action_string )
 
 function add_action()
 {
+	if ( $.trim( $('#new_action').val() ) == $.trim( global_settings.defaultValue) )
+		return;
+
 	var params = {
-		'content'   : $('#new_action').val()    ,
-		'latitude'  : global_settings.latitude  ,
-		'longitude' : global_settings.longitude 
+		'content'      : $.trim($('#new_action').val())  ,
+		'latitude'     : global_settings.latitude  ,
+		'longitude'    : global_settings.longitude ,
+		'country_code' : global_settings.country_code 
 	};
 
 	if ( params.content == "")
@@ -527,6 +667,8 @@ function add_action()
 
 	$.post ( "/add-action/" , params , function ( result ) 
 	{	
+		global_settings.server_date = Date.parse ( result.date );
+
 		$('#action_' + result.actions [ 0 ].Id ).remove();
 
 		var action = make_html_action ( result.actions [ 0 ] , true );
@@ -558,6 +700,14 @@ var delay = (function(){
 $(document).ready(function() 
 {
 	global_settings = new GlobalSettings();
+
+	(function(a,b)
+	{
+	if( /android.+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|symbian|treo|up\.(browser|link)|vodafone|wap|windows (ce|phone)|xda|xiino/i.test(a) || 
+	    /1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s\-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|\-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br(e|v)w|bumb|bw\-(n|u)|c55\/|capi|ccwa|cdm\-|cell|chtm|cldc|cmd\-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc\-s|devi|dica|dmob|do(c|p)o|ds(12|\-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly(\-|_)|g1 u|g560|gene|gf\-5|g\-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd\-(m|p|t)|hei\-|hi(pt|ta)|hp( i|ip)|hs\-c|ht(c(\-| |_|a|g|p|s|t)|tp)|hu(aw|tc)|i\-(20|go|ma)|i230|iac( |\-|\/)|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja(t|v)a|jbro|jemu|jigs|kddi|keji|kgt( |\/)|klon|kpt |kwc\-|kyo(c|k)|le(no|xi)|lg( g|\/(k|l|u)|50|54|\-[a-w])|libw|lynx|m1\-w|m3ga|m50\/|ma(te|ui|xo)|mc(01|21|ca)|m\-cr|me(di|rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t(\-| |o|v)|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30(0|2)|n50(0|2|5)|n7(0(0|1)|10)|ne((c|m)\-|on|tf|wf|wg|wt)|nok(6|i)|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan(a|d|t)|pdxg|pg(13|\-([1-8]|c))|phil|pire|pl(ay|uc)|pn\-2|po(ck|rt|se)|prox|psio|pt\-g|qa\-a|qc(07|12|21|32|60|\-[2-7]|i\-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/|sa(ge|ma|mm|ms|ny|va)|sc(01|h\-|oo|p\-)|sdk\/|se(c(\-|0|1)|47|mc|nd|ri)|sgh\-|shar|sie(\-|m)|sk\-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h\-|v\-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl\-|tdg\-|tel(i|m)|tim\-|t\-mo|to(pl|sh)|ts(70|m\-|m3|m5)|tx\-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|\-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c(\-| )|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas\-|your|zeto|zte\-/i.test(a.substr(0,4)))
+		global_settings.mobile = true;
+	})(navigator.userAgent||navigator.vendor||window.opera);
+
 	global_settings.init();
 
 	show_location();
@@ -585,6 +735,8 @@ $(document).ready(function()
 			});
 		}
 	});
+
+	global_settings.defaultValue = $("#new_action").val();
 
 	$("#new_action")
 	.focus(function() 
@@ -638,6 +790,10 @@ $(document).ready(function()
 		}
 	});
 
+	$(".action_content").each( function(){
+		$(this).html (  $(this).html().parseURL().parseUsername().parseHashtag() );
+	});
+
 	$('#btn_new_action').click ( function() 
 	{
 		add_action();
@@ -663,9 +819,13 @@ $(document).ready(function()
 
 	(function poll()
 	{
+		// TODO tengo que chequear si esta habilitado el pooling
+		if ( !poll_enabled )
+			return false;
+
 		if ( global_settings.poll_count++ == 0 )
 		{
-			setTimeout ( poll , 120000 );
+			setTimeout ( poll , 25000 );
 			return;
 		}
 			
@@ -678,24 +838,50 @@ $(document).ready(function()
 			"filter"    : global_settings.actions_filter
 		};
 
-	    $.getJSON( "/new-actions/", params , function(data)
+	    $.getJSON( "/new-actions/", params , function(result)
 	    {
+	    	global_settings.server_date = Date.parse ( result.date );
+	    	update_times();
+
 	        $("#new_actions").remove();
 
-	        if ( data.count > 0 )
+	        if ( result.actions.length > 0 )
 	        {
-	        	var count = $('<div>');
+	        	document.title = "(" + result.actions.length + ") " + global_settings.title;
+
+	        	var count  = $('<div>');
 	        	count.attr ( "id" , "new_actions");
 
-	        	count.html ( "<center><a href='/'>New Doings (" + data.count + ")</a></center>");
+	        	count.html ( "New Doings (" + result.actions.length + ")");
 
 	        	count.hide().prependTo('#actions').slideDown("slow");
+
+	        	count.click ( function() 
+	        	{
+	        		count.remove();
+	        		document.title = global_settings.title;
+
+	        		for ( var i = result.actions.length - 1 ; i >= 0 ; i-- )
+	        		{
+	        			$('#action_' + result.actions [ i ].Id ).remove();
+
+						var action = make_html_action ( result.actions [ i ] , false );
+						action.prependTo('#actions');
+					}
+					create_actions_handlers();
+	        	});
+	        }
+	        else
+	        {
+	        	document.title = global_settings.title;
 	        }
 
-	        setTimeout ( poll , 120000 );
+	        setTimeout ( poll , 25000 );
 
 	    },
 	    "json");
 	})();
 
 });
+
+

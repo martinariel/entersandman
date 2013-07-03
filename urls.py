@@ -14,7 +14,7 @@ urlpatterns = patterns('',
     url(r'^stats/'          , 'actions.views.stats'          ),
     url(r'^heat-map/'       , 'actions.views.heat_map'       ),
     url(r'^new-actions/'    , 'actions.views.new_actions'    ),
-    url(r'^doing/(\d+)/$'        , 'actions.views.view_action'    ),
+    url(r'^doing/(\d+)/$'   , 'actions.views.view_action'    ),
 
     # Uncomment the admin/doc line below to enable admin documentation:
     url(r'^admin/doc/', include('django.contrib.admindocs.urls')),
