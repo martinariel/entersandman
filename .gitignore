@@ -12,3 +12,5 @@ pygeoip_modif.pyc
 settings.pyc
 
 urls.pyc
+
+.DS_Store
